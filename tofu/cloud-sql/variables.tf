@@ -50,3 +50,9 @@ variable "psa_prefix_length" {
   type        = number
   default     = 20
 }
+
+variable "public_ip_enabled" {
+  description = "Temporary public IP for setup (checklist 1.3 to 1.4). Keep false; turn on only with -var public_ip_enabled=true. No authorized networks, so only the Auth Proxy with IAM can connect."
+  type        = bool
+  default     = false
+}
