@@ -31,5 +31,19 @@ variable "apis" {
     "iam.googleapis.com",
     "secretmanager.googleapis.com",
     "sqladmin.googleapis.com",
+    "run.googleapis.com",
+    "artifactregistry.googleapis.com",
+    "cloudbuild.googleapis.com",
+    "servicenetworking.googleapis.com",
+    "compute.googleapis.com",
+  ]
+}
+
+variable "owners" {
+  description = "Members granted roles/owner on the project (additive; other owners are left alone). Add the owners group here once it exists."
+  type        = set(string)
+  default = [
+    "user:maria.violante@dicemi.org",
+    "user:jerry.happel@dicemi.org",
   ]
 }
