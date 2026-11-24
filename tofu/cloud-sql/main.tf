@@ -43,7 +43,9 @@ resource "google_sql_database_instance" "this" {
     deletion_protection_enabled = true
 
     ip_configuration {
-      ipv4_enabled    = false
+      # Temporary public IP for setup only (var.public_ip_enabled, default false).
+      # Still no authorized_networks: only the Auth Proxy with IAM works.
+      ipv4_enabled    = var.public_ip_enabled
       private_network = google_compute_network.this.id
       ssl_mode        = "ENCRYPTED_ONLY"
       # No authorized_networks, on purpose.
@@ -68,4 +70,40 @@ resource "google_sql_database_instance" "this" {
   }
 
   depends_on = [google_service_networking_connection.psa]
+}
+
+# Warns on every plan/apply while the public address is on.
+check "public_ip_is_off" {
+  assert {
+    condition     = !var.public_ip_enabled
+    error_message = "public_ip_enabled is true: the instance has a public IP (IAM + Auth Proxy only, no authorized networks). Apply again without -var public_ip_enabled=true to close it."
+  }
+}
+
+# Built-in superuser. Password generated here and stored in Secret Manager, so nobody types or sees it.
+# It is also in this root's state (private R2 bucket), same as the R2 keys.
+resource "random_password" "postgres" {
+  length  = 32
+  special = false
+}
+
+resource "google_sql_user" "postgres" {
+  project  = var.project_id
+  instance = google_sql_database_instance.this.name
+  name     = "postgres"
+  password = random_password.postgres.result
+}
+
+resource "google_secret_manager_secret" "postgres_password" {
+  project   = var.project_id
+  secret_id = "cloud-sql-postgres-password"
+
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "postgres_password" {
+  secret      = google_secret_manager_secret.postgres_password.id
+  secret_data = random_password.postgres.result
 }
