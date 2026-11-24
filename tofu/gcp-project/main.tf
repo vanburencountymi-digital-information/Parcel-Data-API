@@ -23,3 +23,12 @@ resource "google_project_service" "apis" {
   service            = each.value
   disable_on_destroy = false
 }
+
+# Additive on purpose: authoritative bindings would remove owners we do not manage here.
+resource "google_project_iam_member" "owners" {
+  for_each = var.owners
+
+  project = google_project.this.project_id
+  role    = "roles/owner"
+  member  = each.value
+}
