@@ -51,6 +51,12 @@ resource "google_sql_database_instance" "this" {
       # No authorized_networks, on purpose.
     }
 
+    # Lets people log in with their Google account (no password); see google_sql_user.iam below.
+    database_flags {
+      name  = "cloudsql.iam_authentication"
+      value = "on"
+    }
+
     backup_configuration {
       enabled                        = true
       start_time                     = "08:00" # UTC, about 3-4 am Eastern
@@ -106,4 +112,65 @@ resource "google_secret_manager_secret" "postgres_password" {
 resource "google_secret_manager_secret_version" "postgres_password" {
   secret      = google_secret_manager_secret.postgres_password.id
   secret_data = random_password.postgres.result
+}
+
+# ---------------------------------------------------------------------------
+# Database roles (checklist 1.4, DIC-3117). No role for Walter, on purpose.
+# ---------------------------------------------------------------------------
+
+# Application logins: password generated here, stored in Secret Manager, never printed.
+# Passwords are also in this root's state (private R2 bucket), same as the postgres one.
+resource "random_password" "app_role" {
+  for_each = var.app_roles
+
+  length  = 32
+  special = false
+}
+
+resource "google_sql_user" "app_role" {
+  for_each = var.app_roles
+
+  project  = var.project_id
+  instance = google_sql_database_instance.this.name
+  name     = each.key
+  password = random_password.app_role[each.key].result
+}
+
+resource "google_secret_manager_secret" "app_role" {
+  for_each = var.app_roles
+
+  project   = var.project_id
+  secret_id = "cloud-sql-${replace(each.key, "_", "-")}-password"
+
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "app_role" {
+  for_each = var.app_roles
+
+  secret      = google_secret_manager_secret.app_role[each.key].id
+  secret_data = random_password.app_role[each.key].result
+}
+
+# People: log in with their Google account through the Auth Proxy (--auto-iam-authn).
+resource "google_sql_user" "iam" {
+  for_each = var.iam_users
+
+  project  = var.project_id
+  instance = google_sql_database_instance.this.name
+  name     = each.value
+  type     = "CLOUD_IAM_USER"
+}
+
+resource "google_project_iam_member" "iam_user" {
+  for_each = {
+    for pair in setproduct(var.iam_users, ["roles/cloudsql.client", "roles/cloudsql.instanceUser"]) :
+    "${pair[0]}|${pair[1]}" => { user = pair[0], role = pair[1] }
+  }
+
+  project = var.project_id
+  role    = each.value.role
+  member  = "user:${each.value.user}"
 }

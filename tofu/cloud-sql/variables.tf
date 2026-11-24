@@ -56,3 +56,15 @@ variable "public_ip_enabled" {
   type        = bool
   default     = false
 }
+
+variable "app_roles" {
+  description = "Password logins for services (checklist 1.4): steward_app for the Django service, martin_ro for read-only tiles."
+  type        = set(string)
+  default     = ["steward_app", "martin_ro"]
+}
+
+variable "iam_users" {
+  description = "People who log in with their Google account (the yearly load, admin work). Plain email addresses."
+  type        = set(string)
+  default     = ["maria.violante@dicemi.org", "jerry.happel@dicemi.org"]
+}
